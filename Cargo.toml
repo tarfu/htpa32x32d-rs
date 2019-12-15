@@ -1,0 +1,26 @@
+[package]
+name = "htpa32x32d"
+version = "0.1.0"
+authors = ["Tobias Breitwieser <tobias@breitwieser.biz>"]
+edition = "2018"
+exclude = [".travis.yml", ".gitignore"]
+documentation = "https://docs.rs/htpa32x32d"
+keywords = ["no-std", "htpa32x32d", "embedded", "embedded-hal-driver"]
+categories = ["embedded", "no-std"]
+readme = "README.md"
+description = ""
+
+[badges.travis-ci]
+repository = "tarfu/htpa32x32d-rs"
+branch = "master"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+embedded-hal = "0.2.3"
+
+[dev-dependencies]
+cortex-m = "0.6.1"
+cortex-m-rt = "0.6.11"
+panic-semihosting = "0.5.3"
+
