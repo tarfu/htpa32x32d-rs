@@ -8,7 +8,7 @@ documentation = "https://docs.rs/htpa32x32d"
 keywords = ["no-std", "htpa32x32d", "embedded", "embedded-hal-driver"]
 categories = ["embedded", "no-std"]
 readme = "README.md"
-description = ""
+description = "Driver for the HTPA32x32 an Thermopile Array from Heimann"
 
 [badges.travis-ci]
 repository = "tarfu/htpa32x32d-rs"
