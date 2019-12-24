@@ -10,17 +10,28 @@ categories = ["embedded", "no-std"]
 readme = "README.md"
 description = "Driver for the HTPA32x32 an Thermopile Array from Heimann"
 
-[badges.travis-ci]
-repository = "tarfu/htpa32x32d-rs"
-branch = "master"
+#[badges.travis-ci]
+#repository = "tarfu/htpa32x32d-rs"
+#branch = "master"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-embedded-hal = "0.2.3"
+embedded-hal = "^0.2"
+#bit_field = "0.10.0"
+#libm = "0.2.1"
+
 
 [dev-dependencies]
-cortex-m = "0.6.1"
-cortex-m-rt = "0.6.11"
-panic-semihosting = "0.5.3"
+cortex-m = "^0.5"
+cortex-m-rt = "^0.6"
+panic-semihosting = "^0.5"
+cortex-m-semihosting = "0.3.5"
+ssd1306 = "0.2.6"
+f3 = "0.6.1"
+shared-bus = { version = "0.1.4", features = ["cortexm"] }
+embedded-graphics = "0.4"
+max3010x = "0.1"
+heapless = "0.4.0"
+st7735-lcd = "0.6.1"
 

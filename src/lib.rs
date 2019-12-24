@@ -13,13 +13,138 @@
 #![deny(unused_import_braces)]
 #![deny(unused_qualifications)]
 
-/// Errors in this crate
-#[derive(Debug)]
-pub enum Error<CommE, PinE> {
-    /// Communication error
-    Comm(CommE),
-    /// Pin setting error
-    Pin(PinE),
+
+use embedded_hal as hal;
+
+//use libm;
+//use bit_field::BitField;
+
+use crate::hal::blocking::delay::DelayMs;
+use crate::hal::blocking::i2c::{Read, Write, WriteRead};
+
+
+pub struct Htpa32x32d<I2C, D> {
+
+    i2c: I2C,
+    delay: D,
+    addr_sensor: u8,
+    #[allow(dead_code)]
+    addr_eeprom: u8,
+    woken_up: bool,
+}
+
+
+impl<I2C, D, E> Htpa32x32d<I2C, D>
+    where
+        I2C: Read<Error = E> + Write<Error = E> + WriteRead<Error = E>,
+        D: DelayMs<u8>,
+{
+    /// Create new htpa32x32d I2C interface
+    pub fn new(i2c: I2C, delay: D, addr_sensor: u8, addr_eeprom: u8) -> Self {
+        let mut sensor = Self{ i2c, delay, addr_sensor, addr_eeprom, woken_up: false };
+        let clk = ClkTrim::from(0x14);
+
+        sensor.woken_up=true;
+        sensor.i2c.write(addr_sensor, &[Register::Configuration as u8, sensor.woken_up as u8]).err();
+        sensor.delay.delay_ms(30);
+        sensor.i2c.write(addr_sensor, &[Register::Trim1 as u8, 0x0C]).err();
+        sensor.i2c.write(addr_sensor, &[Register::Trim2 as u8, 0x0C]).err();
+        sensor.i2c.write(addr_sensor, &[Register::Trim3 as u8, 0x0C]).err();
+        sensor.i2c.write(addr_sensor, &[Register::Trim4 as u8, clk.0]).err();
+        sensor.i2c.write(addr_sensor, &[Register::Trim5 as u8, 0x0C]).err();
+        sensor.i2c.write(addr_sensor, &[Register::Trim6 as u8, 0x0C]).err();
+        sensor.i2c.write(addr_sensor, &[Register::Trim7 as u8, 0x88]).err();
+
+
+
+        return sensor
+    }
+
+
+    pub fn is_woken_up(&self) -> bool {
+        self.woken_up
+    }
+
+    pub fn set_wake_up(&mut self, wakeup: bool) {
+        self.woken_up = wakeup;
+    }
+
+    pub fn start_measurement(&mut self, measurement: Measurement) -> Result<(), Error<E>> {
+        if !self.woken_up { return Err(Error::Standby) }
+        let configuration_mask = measurement.get_configuration_bitmask();
+
+        self.i2c
+            .write(self.addr_sensor, &[Register::Configuration as u8, configuration_mask])
+            .map_err(Error::I2c)
+    }
+
+    pub fn check_measurement_ready(&mut self, measurement: Measurement) -> Result<bool, Error<E>> {
+        let status = match self.get_sensor_status() {
+            Ok(t) => t,
+            Err(e) => return Err(e)
+        };
+        Ok(measurement.check_measurement_readiness(status))
+
+    }
+
+
+    fn get_sensor_status(&mut self) -> Result<u8, Error<E>> {
+        let writebuf: [u8; 1] = [Register::Status as u8];
+        let mut readbuf: [u8; 1] = [0; 1];
+
+
+        match self.i2c.write_read(self.addr_sensor, &writebuf, &mut readbuf) {
+            Ok(_) => Ok(readbuf[0]),
+            Err(e) => Err(Error::I2c(e))
+        }
+    }
+
+    /// get measurement for the block specified in the former send command and select from which half it should come
+    /// data must be at 258 in size
+    pub fn get_measurement_data(&mut self, half: SensorHalf, data: &mut [u8]) -> Result<(), Error<E>> {
+        self.i2c.write_read(self.addr_sensor, &[half as u8], data)
+            .map_err(Error::I2c)
+    }
+
+
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Measurement {
+    /// After the START bit is set the chip starts a conversion of the array or blind elements and  enters the idle state (not sleep!) when finished. The BLOCK selects one of the four multiplexed array blocks.
+    Ptat {block: Block },
+    /// sample electrical offset instead of active pixels ignoring block
+    Blind {},
+    ///  VDD voltage is measured instead of the PTAT value
+    VddMeas {block: Block },
+}
+
+impl Measurement {
+    fn get_configuration_bitmask(self) -> u8 {
+        match self {
+            Measurement::Ptat {block} => (block as u8) << 4 | 1 << 3 | 1,
+            Measurement::VddMeas {block} => (block as u8) << 4 | 1 << 3 | 1 << 2 | 1,
+            Measurement::Blind {} => 1 << 3 | 1 << 1 | 1
+        }
+    }
+
+    fn check_measurement_readiness(self, status: u8) -> bool {
+        match self {
+            Measurement::Ptat {block } => (
+                (!(StatusBitmasks::Rfu as u8))
+                    ==
+                    ((block as u8) << 4) | (StatusBitmasks::Eoc as u8)) ,
+            Measurement::Blind {} => (
+                ((!(StatusBitmasks::Rfu as u8)) | (!(StatusBitmasks::Block as u8)))
+                    ==
+                    (StatusBitmasks::Blind as u8 | (StatusBitmasks::Eoc as u8))),
+            Measurement::VddMeas {block } => (
+                ((!(StatusBitmasks::Rfu as u8)) & status)
+                    ==
+                    (((block as u8) << 4) | (StatusBitmasks::VddMeas as u8) | (StatusBitmasks::Eoc as u8))),
+        }
+    }
+
 }
 
 /// Addresses for the Sensor and EEPROM
@@ -33,57 +158,67 @@ pub enum Address{
 
 /// Commands available for the Sensor
 
-#[derive(Clone, Copy)]
-pub enum Command{
-    /// Start the sensor for operation
-    Wakeup(bool),
-    /// After the START bit is set the chip starts a conversion of the array or blind elements and  enters the idle state (not sleep!) when finished. The BLOCK selects one of the four multiplexed array blocks.
-    Ptat{start: bool, block: Block},
-    /// sample electrical offset instead of active pixels ignoring block
-    Blind{start: bool},
-    ///  VDD voltage is measured instead of the PTAT value
-    VddMeas{start: bool, block: Block},
+
+enum StatusBitmasks {
+    /// EOC flag is set a previous started conversion has been finished
+    Eoc = 0b0000_0001,
+    /// Indicates that the operation was Blind
+    Blind = 0b0000_0010,
+    /// Indicates that the operation was VDD_MEAS
+    VddMeas = 0b0000_0100,
+    /// Block for which the operation was done
+    Block = 0b0011_0000,
+    /// Reserved for future use bits
+    Rfu = 0b1100_1000,
 }
-impl Command {
-    pub fn send<SI>(self, iface: &mut SI) -> Result<(), SI::Error>
-        where
-            SI: SensorInterface,
-    {
 
-        // Transform command into a fixed size array of 7 u8 and the real length for sending
-        let (data, len) = match self {
-            Command::Wakeup(wakeup) => {iface.set_wake_up(wakeup); ([0x01, wakeup as u8], 2)},
-            Command::Ptat{start, block} => ([0x01, (block as u8) << 4 | (start as u8) << 3 | (iface.is_woken_up() as u8)], 2),
-            Command::Blind {start} => ([0x01, (start as u8) << 3 | 1 << 1 | (iface.is_woken_up() as u8)], 2),
-            Command::VddMeas {start, block} => ([0x01, (block as u8) << 4 | (start as u8) << 3 | 1 << 2 | (iface.is_woken_up() as u8)], 2),
-        };
-
-        iface.send_commands(&data[0..len])
-
-    }
-
-
+#[allow(dead_code)]
+enum Register {
+    /// Configuration for commands
+    Configuration = 0x01,
+    /// Readyness and sensor status
+    Status = 0x02,
+    /// Amplification and ADC resolution
+    Trim1 = 0x03,
+    /// BIAS_TRIM_TOP  bias current of the ADC. A faster clock frequency requires higher bias current setting.
+    Trim2 = 0x04,
+    /// BIAS_TRIM_BOT
+    Trim3 = 0x05,
+    /// CLK_TRIM: 0 to 63 -> 1MHz to 13MHz
+    Trim4 = 0x06,
+    /// BPA_TRIM_TOP  adjust the common mode voltage of the preamplifier
+    Trim5 = 0x07,
+    /// BPA_TRIM_BOT
+    Trim6 = 0x08,
+    /// PU_SDA_TRIM, PU_SCL_TRIM -- 1000 = 100 kOhm; 0100 = 50 kOhm; 0010 = 10 kOhm; 0001 = 1 kOhm
+    Trim7 = 0x09,
+    /// Read block from top half of the sensor
+    ReadTop = 0x0A,
+    ///  Read block from bottom half of the sensor
+    ReadBottom = 0x0B,
 }
+
 #[derive(Debug, Clone, Copy)]
 pub struct ClkTrim(u8);
-impl From<u8> for ClkTrim{
-    fn from(val: u8) -> ClkTrim{
+
+impl From<u8> for ClkTrim {
+    fn from(val: u8) -> ClkTrim {
         if val > 63 {
-            panic!("Invalid Clock Trim!")
+            return ClkTrim(63);
         }
-        return ClkTrim(val)
+        return ClkTrim(val);
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum  Block {
+pub enum Block {
     Block0 = 0b00,
     Block1 = 0b01,
     Block2 = 0b10,
-    Block3 = 0b11
+    Block3 = 0b11,
 }
 
-impl From<u8> for Block{
+impl From<u8> for Block {
     fn from(val: u8) -> Block {
         match val {
             0 => Block::Block0,
@@ -91,19 +226,27 @@ impl From<u8> for Block{
             2 => Block::Block2,
             3 => Block::Block3,
             _ => panic!("Block too high"),
-
         }
     }
 }
 
+/// Errors
+#[derive(Debug)]
+pub enum Error<E> {
+    /// I2C bus error
+    I2c(E),
+    /// Sensor is in Standby
+    Standby,
+}
 
 
-extern crate embedded_hal as hal;
+#[derive(Clone, Copy)]
+pub enum SensorHalf{
+    Top = 0x0A,
+    Bottom =0x0B,
+}
 
-use crate::interface::SensorInterface;
 
-
-pub mod interface;
 
 
 #[cfg(test)]
