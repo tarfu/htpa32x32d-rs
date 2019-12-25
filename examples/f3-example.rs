@@ -35,11 +35,6 @@ use ssd1306::Builder;
 use cortex_m_semihosting::hprintln;
 use cortex_m_semihosting::hio;
 
-
-
-use htpa32x32d::interface::i2c::I2cInterface;
-
-
 use core::fmt::{Write, Error};
 use embedded_graphics::pixelcolor::{PixelColorU8, PixelColorU16};
 use f3::hal::stm32f30x::SPI1;
@@ -100,7 +95,7 @@ fn main() -> ! {
     let spi = Spi::spi1(
         dp.SPI1,
         (sck, miso, mosi),
-        Mode{phase: Phase::CaptureOnFirstTransition, polarity: Polarity::IdleHigh},
+        Mode { phase: Phase::CaptureOnFirstTransition, polarity: Polarity::IdleHigh },
         1.mhz(),
         clocks,
         &mut rcc.apb2,
@@ -122,7 +117,7 @@ fn main() -> ! {
 
     let mut stdout = match hio::hstdout() {
         Ok(fd) => fd,
-        Err(()) => return Err(core::fmt::Error),
+        Err(()) => panic!("something went wrong")
     };
 
 
@@ -130,39 +125,40 @@ fn main() -> ! {
     let mut last_instant = clock.now();
     let clock_divider: time::Hertz = 72.khz().into();
     let mut led_on = false;
+    let mut last_point = 0;
     loop {
 
         // Blink LED 0 to check that everything is actually running.
         // If the LED 0 is off, something went wrong.
         led_on = match led_on {
-            true => {led.off(); false},
-            false => {led.on(); true},
+            true => {
+                led.off();
+                false
+            }
+            false => {
+                led.on();
+                true
+            }
         };
 
 
-
         let mut buffer: heapless::String<heapless::consts::U64> = heapless::String::new();
-        let mut data = [0; READ_SAMPLES];
 
 
-//            disp.clear();
+        let now_instant = clock.now();
 
-            let now_instant = clock.now();
+        write!(buffer, "{} {} {} {}         ", last_instant.elapsed() / clock_divider.0, 1, 1, 1).unwrap();
+        disp.draw(
+            Font6x8::render_str(&buffer)
+                .with_stroke(Some(1u8.into()))
+                .into_iter(),
+        );
+        last_instant = now_instant;
 
-            write!(buffer, "{} {} {} {}         ", last_instant.elapsed()/ clock_divider.0, 1, 1, 1).unwrap();
-            disp.draw(
-                Font6x8::render_str(&buffer)
-                    .with_stroke(Some(1u8.into()))
-                    .into_iter(),
-            );
-            last_instant = now_instant;
+        disp.set_pixel(last_point, last_point, 1);
+        last_point += 1;
 
-            disp.set_pixel(xPointer, now, 1);
-            lastPoint = now;
-
-            disp.flush().unwrap();
-
-
-        }
+        disp.flush().unwrap();
     }
 }
+

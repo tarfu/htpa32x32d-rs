@@ -20,7 +20,7 @@ use embedded_hal as hal;
 //use bit_field::BitField;
 
 use crate::hal::blocking::delay::DelayMs;
-use crate::hal::blocking::i2c::{Read, Write, WriteRead};
+use crate::hal::blocking::i2c::{Write, WriteRead};
 
 
 pub struct Htpa32x32d<I2C, D> {
@@ -36,7 +36,7 @@ pub struct Htpa32x32d<I2C, D> {
 
 impl<I2C, D, E> Htpa32x32d<I2C, D>
     where
-        I2C: Read<Error = E> + Write<Error = E> + WriteRead<Error = E>,
+        I2C: Write<Error = E> + WriteRead<Error = E>,
         D: DelayMs<u8>,
 {
     /// Create new htpa32x32d I2C interface
@@ -54,7 +54,6 @@ impl<I2C, D, E> Htpa32x32d<I2C, D>
         sensor.i2c.write(addr_sensor, &[Register::Trim5 as u8, 0x0C]).err();
         sensor.i2c.write(addr_sensor, &[Register::Trim6 as u8, 0x0C]).err();
         sensor.i2c.write(addr_sensor, &[Register::Trim7 as u8, 0x88]).err();
-
 
 
         return sensor
@@ -245,8 +244,6 @@ pub enum SensorHalf{
     Top = 0x0A,
     Bottom =0x0B,
 }
-
-
 
 
 #[cfg(test)]
