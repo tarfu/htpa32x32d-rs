@@ -9,6 +9,8 @@ keywords = ["no-std", "htpa32x32d", "embedded", "embedded-hal-driver"]
 categories = ["embedded", "no-std"]
 readme = "README.md"
 description = "Driver for the HTPA32x32 an Thermopile Array from Heimann"
+license = "Apache-2.0"
+license-file = "LICENSE"
 
 #[badges.travis-ci]
 #repository = "tarfu/htpa32x32d-rs"
