@@ -10,6 +10,6 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --verbose --target x86_64-unknown-linux-gnu
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --verbose --target x86_64-unknown-linux-gnu

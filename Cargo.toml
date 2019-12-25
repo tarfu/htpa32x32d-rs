@@ -1,6 +1,6 @@
 [package]
 name = "htpa32x32d"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Tobias Breitwieser <tobias@breitwieser.biz>"]
 edition = "2018"
 exclude = [".travis.yml", ".gitignore"]
