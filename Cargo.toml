@@ -1,6 +1,6 @@
 [package]
 name = "htpa32x32d"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Tobias Breitwieser <tobias@breitwieser.biz>"]
 edition = "2018"
 exclude = [".gitignore", ".github"]
@@ -22,15 +22,14 @@ embedded-hal = "^0.2"
 
 
 [dev-dependencies]
-cortex-m = "^0.5"
+cortex-m = "^0.6"
 cortex-m-rt = "^0.6"
 panic-semihosting = "^0.5"
 cortex-m-semihosting = "0.3.5"
-ssd1306 = "0.2.6"
-f3 = "0.6.1"
+nrf52840-hal = "^0.8"
 shared-bus = { version = "0.1.4", features = ["cortexm"] }
-embedded-graphics = "0.4"
-max3010x = "0.1"
+embedded-graphics = "0.5"
 heapless = "0.4.0"
-st7735-lcd = "0.6.1"
+ssd1306 = "0.2.6"
+st7735-lcd = {version = "0.6.1", features = ["graphics"] }
 

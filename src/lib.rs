@@ -21,12 +21,12 @@ use embedded_hal as hal;
 
 use crate::hal::blocking::delay::DelayMs;
 use crate::hal::blocking::i2c::{Write, WriteRead};
+use embedded_hal::blocking::i2c::Read;
 
 
-pub struct Htpa32x32d<I2C, D> {
+pub struct Htpa32x32d<I2C> {
 
     i2c: I2C,
-    delay: D,
     addr_sensor: u8,
     #[allow(dead_code)]
     addr_eeprom: u8,
@@ -34,27 +34,15 @@ pub struct Htpa32x32d<I2C, D> {
 }
 
 
-impl<I2C, D, E> Htpa32x32d<I2C, D>
+impl<I2C, E> Htpa32x32d<I2C>
     where
-        I2C: Write<Error = E> + WriteRead<Error = E>,
-        D: DelayMs<u8>,
+        I2C: Write<Error = E> + WriteRead<Error = E> + Read<Error = E>,
 {
     /// Create new htpa32x32d I2C interface
-    pub fn new(i2c: I2C, delay: D, addr_sensor: u8, addr_eeprom: u8) -> Self {
-        let mut sensor = Self{ i2c, delay, addr_sensor, addr_eeprom, woken_up: false };
-        let clk = ClkTrim::from(0x14);
+    /// A maximum of 1mhz i2c is supported, typical 400khz
+    pub fn new(i2c: I2C, addr_sensor: u8, addr_eeprom: u8) -> Self {
 
-        sensor.woken_up=true;
-        sensor.i2c.write(addr_sensor, &[Register::Configuration as u8, sensor.woken_up as u8]).err();
-        sensor.delay.delay_ms(30);
-        sensor.i2c.write(addr_sensor, &[Register::Trim1 as u8, 0x0C]).err();
-        sensor.i2c.write(addr_sensor, &[Register::Trim2 as u8, 0x0C]).err();
-        sensor.i2c.write(addr_sensor, &[Register::Trim3 as u8, 0x0C]).err();
-        sensor.i2c.write(addr_sensor, &[Register::Trim4 as u8, clk.0]).err();
-        sensor.i2c.write(addr_sensor, &[Register::Trim5 as u8, 0x0C]).err();
-        sensor.i2c.write(addr_sensor, &[Register::Trim6 as u8, 0x0C]).err();
-        sensor.i2c.write(addr_sensor, &[Register::Trim7 as u8, 0x88]).err();
-
+        let sensor = Self{ i2c, addr_sensor, addr_eeprom, woken_up: false };
 
         return sensor
     }
@@ -64,8 +52,33 @@ impl<I2C, D, E> Htpa32x32d<I2C, D>
         self.woken_up
     }
 
-    pub fn set_wake_up(&mut self, wakeup: bool) {
-        self.woken_up = wakeup;
+    pub fn suspend(&mut self) {
+        self.woken_up = false;
+        self.i2c.write(self.addr_sensor, &[Register::Configuration as u8, self.woken_up as u8]).err();
+    }
+
+    pub fn wakeup_and_write_config<DELAY>(&mut self, delay: &mut DELAY) -> Result<(), Error<E>>
+        where DELAY: DelayMs<u8> {
+
+        let clk = ClkTrim::from(0x14);
+
+        self.woken_up=true;
+        self.i2c.write(self.addr_sensor, &[Register::Configuration as u8, self.woken_up as u8]).err();
+        delay.delay_ms(30);
+        self.i2c.write(self.addr_sensor, &[Register::Trim1 as u8, 0x0C]).err();
+        delay.delay_ms(5);
+        self.i2c.write(self.addr_sensor, &[Register::Trim2 as u8, 0x0C]).err();
+        delay.delay_ms(5);
+        self.i2c.write(self.addr_sensor, &[Register::Trim3 as u8, 0x0C]).err();
+        delay.delay_ms(5);
+        self.i2c.write(self.addr_sensor, &[Register::Trim4 as u8, clk.0]).err();
+        delay.delay_ms(5);
+        self.i2c.write(self.addr_sensor, &[Register::Trim5 as u8, 0x0C]).err();
+        delay.delay_ms(5);
+        self.i2c.write(self.addr_sensor, &[Register::Trim6 as u8, 0x0C]).err();
+        delay.delay_ms(5);
+        self.i2c.write(self.addr_sensor, &[Register::Trim7 as u8, 0x88]).map_err(Error::I2c)
+
     }
 
     pub fn start_measurement(&mut self, measurement: Measurement) -> Result<(), Error<E>> {
@@ -100,8 +113,10 @@ impl<I2C, D, E> Htpa32x32d<I2C, D>
 
     /// get measurement for the block specified in the former send command and select from which half it should come
     /// data must be at 258 in size
-    pub fn get_measurement_data(&mut self, half: SensorHalf, data: &mut [u8]) -> Result<(), Error<E>> {
-        self.i2c.write_read(self.addr_sensor, &[half as u8], data)
+    pub fn get_measurement_data(&mut self, half: SensorHalf, data: &mut [u8; 258]) -> Result<(), Error<E>> {
+        let sensor_half = [half as u8];
+
+        self.i2c.write_read(self.addr_sensor, &sensor_half, data)
             .map_err(Error::I2c)
     }
 
@@ -130,11 +145,11 @@ impl Measurement {
     fn check_measurement_readiness(self, status: u8) -> bool {
         match self {
             Measurement::Ptat {block } => (
-                (!(StatusBitmasks::Rfu as u8))
+                ((!(StatusBitmasks::Rfu as u8))  & status)
                     ==
                     ((block as u8) << 4) | (StatusBitmasks::Eoc as u8)) ,
             Measurement::Blind {} => (
-                ((!(StatusBitmasks::Rfu as u8)) | (!(StatusBitmasks::Block as u8)))
+                (((!(StatusBitmasks::Rfu as u8)) | (!(StatusBitmasks::Block as u8)))  & status)
                     ==
                     (StatusBitmasks::Blind as u8 | (StatusBitmasks::Eoc as u8))),
             Measurement::VddMeas {block } => (
