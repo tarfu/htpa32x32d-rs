@@ -40,8 +40,6 @@ use embedded_hal::digital::OutputPin;
 use st7735_lcd;
 use st7735_lcd::Orientation;
 
-use ssd1306::prelude::*;
-use ssd1306::Builder;
 
 ///
 /// D22 .. D23 (aka I2C pins)
@@ -95,6 +93,10 @@ fn main() -> ! {
 
     let i2c = Twim::new(p.TWIM0, pinsTwim, twim::Frequency::K400);
 
+    let initializedString = Font6x8::render_str("initialized")
+        .stroke(Some(Rgb565::from((0, 0, 255))))
+        .fill(Some(Rgb565::from((255, 255, 255))))
+        .into_iter();
     let manager = shared_bus::BusManager::<cortex_m::interrupt::Mutex<_>, _>::new(i2c);
     let mut temp_sensor: Htpa32x32d<_> = Htpa32x32d::new(
         manager.acquire(),
@@ -104,11 +106,8 @@ fn main() -> ! {
 
     temp_sensor.wakeup_and_write_config(&mut delay);
 
-    //    let mut disp: GraphicsMode<_> = Builder::new().with_size(DisplaySize::Display128x32).with_rotation(DisplayRotation::Rotate180).connect_i2c(manager.acquire()).into();
-    //
-    //    disp.init().expect("Display initialization");
-    //    disp.flush().expect("Cleans the display");
-    //
+    disp_lcd.draw(initializedString.into_iter());
+
     let wokenString = Font6x8::render_str("woken")
         .stroke(Some(Rgb565::from((0, 0, 255))))
         .fill(Some(Rgb565::from((255, 255, 255))))
@@ -122,9 +121,6 @@ fn main() -> ! {
         .stroke(Some(Rgb565::from((0, 0, 255))))
         .fill(Some(Rgb565::from((255, 255, 255))))
         .into_iter();
-    //    disp.set_pixel(8, 8, 1);
-    //
-    //    disp.flush().expect("Render display");
 
     let black_backdrop: Rectangle<Rgb565> =
         Rectangle::new(Coord::new(0, 0), Coord::new(160, 40)).fill(Some(Rgb565(0x0000)));
@@ -132,12 +128,15 @@ fn main() -> ! {
     let white_backdrop: Rectangle<Rgb565> = Rectangle::new(Coord::new(0, 0), Coord::new(160, 40))
         .fill(Some(Rgb565::from((255, 255, 255))));
 
-    disp_lcd.draw(black_backdrop.into_iter());
-    disp_lcd.draw(white_backdrop.into_iter());
+//    disp_lcd.draw(black_backdrop.into_iter());
+//    disp_lcd.draw(white_backdrop.into_iter());
 
-    let mut messure: Measurement = Measurement::Ptat { block: Block0 };
+    let messure0: Measurement = Measurement::Ptat { block: Block0 };
+    let messure1: Measurement = Measurement::Ptat { block: Block1 };
+    let messure2: Measurement = Measurement::Ptat { block: Block2 };
+    let messure3: Measurement = Measurement::Ptat { block: Block3 };
+
     let mut data: [u8; 258] = [255u8; 258];
-    let mut waiter = 0u16;
     let mut run = 0;
 
     loop {
@@ -160,25 +159,19 @@ fn main() -> ! {
             disp_lcd.draw(wokenString);
         }
 
-        messure = Measurement::Ptat { block: Block0 };
-        temp_sensor.start_measurement(messure);
+        temp_sensor.start_measurement(messure0);
         if run == 0 {
             disp_lcd.draw(startedString);
         }
         delay.delay_ms(30 as u8);
-        while !temp_sensor.check_measurement_ready(messure).unwrap() {
-            //            disp_lcd.set_pixel(waiter%160, (waiter/160)%128, 0xffff);
-            //            waiter += 1;
+        while !temp_sensor.check_measurement_ready(messure0).unwrap() {
+
             led1.set_low();
             delay.delay_ms(128 as u8);
             led1.set_high();
             delay.delay_ms(128 as u8);
         }
 
-        //        for i in 0..waiter {
-        //            disp_lcd.set_pixel((waiter-i)%160, ((waiter-i)/160)%128, 0x0000);
-        //        }
-        waiter = 0;
 
         temp_sensor
             .get_measurement_data(SensorHalf::Top, &mut data)
@@ -201,12 +194,12 @@ fn main() -> ! {
             );
         }
 
-        delay.delay_ms(128 as u8);
-
-        messure = Measurement::Ptat { block: Block1 };
-        temp_sensor.start_measurement(messure);
+        temp_sensor.stop_measurement();
         delay.delay_ms(30 as u8);
-        while !temp_sensor.check_measurement_ready(messure).unwrap() {
+
+        temp_sensor.start_measurement(messure1);
+        delay.delay_ms(30 as u8);
+        while !temp_sensor.check_measurement_ready(messure1).unwrap() {
             led1.set_low();
             delay.delay_ms(128 as u8);
             led1.set_high();
@@ -232,13 +225,13 @@ fn main() -> ! {
                     | (data[(3 + num1 * 2) as usize] as u16),
             );
         }
+        temp_sensor.stop_measurement();
 
-        delay.delay_ms(128 as u8);
-
-        messure = Measurement::Ptat { block: Block2 };
-        temp_sensor.start_measurement(messure);
         delay.delay_ms(30 as u8);
-        while !temp_sensor.check_measurement_ready(messure).unwrap() {
+
+        temp_sensor.start_measurement(messure2);
+        delay.delay_ms(30 as u8);
+        while !temp_sensor.check_measurement_ready(messure2).unwrap() {
             led1.set_low();
             delay.delay_ms(128 as u8);
             led1.set_high();
@@ -265,12 +258,12 @@ fn main() -> ! {
             );
         }
 
-        delay.delay_ms(128 as u8);
-
-        messure = Measurement::Ptat { block: Block3 };
-        temp_sensor.start_measurement(messure);
+        temp_sensor.stop_measurement();
         delay.delay_ms(30 as u8);
-        while !temp_sensor.check_measurement_ready(messure).unwrap() {
+
+        temp_sensor.start_measurement(messure3);
+        delay.delay_ms(30 as u8);
+        while !temp_sensor.check_measurement_ready(messure3).unwrap() {
             led1.set_low();
             delay.delay_ms(128 as u8);
             led1.set_high();
@@ -297,7 +290,8 @@ fn main() -> ! {
             );
         }
 
-        delay.delay_ms(128 as u8);
+        temp_sensor.stop_measurement();
+        delay.delay_ms(30 as u8);
 
         run += 1;
     }

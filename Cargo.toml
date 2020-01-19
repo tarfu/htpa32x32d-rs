@@ -10,6 +10,7 @@ categories = ["embedded", "no-std"]
 readme = "README.md"
 description = "Driver for the HTPA32x32 an Thermopile Array from Heimann"
 license = "Apache-2.0"
+repository = "https://github.com/tarfu/htpa32x32d-rs"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -30,6 +31,5 @@ nrf52840-hal = "^0.8"
 shared-bus = { version = "0.1.4", features = ["cortexm"] }
 embedded-graphics = "0.5"
 heapless = "0.4.0"
-ssd1306 = "0.2.6"
 st7735-lcd = {version = "0.6.1", features = ["graphics"] }
 

@@ -90,6 +90,14 @@ impl<I2C, E> Htpa32x32d<I2C>
             .map_err(Error::I2c)
     }
 
+    pub fn stop_measurement(&mut self)  -> Result<(), Error<E>> {
+        if !self.woken_up { return Err(Error::Standby) }
+
+        self.i2c.write(self.addr_sensor, &[Register::Configuration as u8, self.woken_up as u8])
+            .map_err(Error::I2c)
+
+    }
+
     pub fn check_measurement_ready(&mut self, measurement: Measurement) -> Result<bool, Error<E>> {
         let status = match self.get_sensor_status() {
             Ok(t) => t,
