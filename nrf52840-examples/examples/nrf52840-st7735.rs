@@ -20,7 +20,8 @@ use embedded_graphics::primitives::Rectangle;
 use embedded_graphics::Drawing;
 
 use nrf52840_hal::{
-    clocks, delay,
+    clocks,
+    delay,
     gpio::{
         self,
         p0::{self, *},
@@ -37,9 +38,9 @@ use htpa32x32d::{Address, Htpa32x32d, Measurement, SensorHalf};
 
 use embedded_hal::blocking::delay::DelayMs;
 use embedded_hal::digital::OutputPin;
+
 use st7735_lcd;
 use st7735_lcd::Orientation;
-
 
 ///
 /// D22 .. D23 (aka I2C pins)
@@ -63,6 +64,11 @@ fn main() -> ! {
 
     let mut led1: Pin<Output<PushPull>> = port1.p1_10.into_push_pull_output(Level::High).degrade();
     let mut led2: Pin<Output<PushPull>> = port1.p1_15.into_push_pull_output(Level::High).degrade();
+
+    let mut power = unsafe { &*pac::POWER::ptr() };
+    power.resetreas.modify(|_, w| w.resetpin().set_bit());
+    //    power.resetreas.modify(|_, w| w.dog().set_bit());
+    //    power.resetreas.modify(|_, w| w.sreq().set_bit());
 
     let spiclk = port0.p0_14.into_push_pull_output(Level::Low).degrade();
     let spimosi = port0.p0_13.into_push_pull_output(Level::Low).degrade();
@@ -128,8 +134,8 @@ fn main() -> ! {
     let white_backdrop: Rectangle<Rgb565> = Rectangle::new(Coord::new(0, 0), Coord::new(160, 40))
         .fill(Some(Rgb565::from((255, 255, 255))));
 
-//    disp_lcd.draw(black_backdrop.into_iter());
-//    disp_lcd.draw(white_backdrop.into_iter());
+    //    disp_lcd.draw(black_backdrop.into_iter());
+    //    disp_lcd.draw(white_backdrop.into_iter());
 
     let messure0: Measurement = Measurement::Ptat { block: Block0 };
     let messure1: Measurement = Measurement::Ptat { block: Block1 };
@@ -138,11 +144,12 @@ fn main() -> ! {
 
     let mut data: [u8; 258] = [255u8; 258];
     let mut run = 0;
+    let tablenumber = temp_sensor.get_tablenumber().unwrap();
 
     loop {
-
+        let sum: u32 = data.iter().fold(0, |a, v| a + (*v as u32));
         let mut buffer: heapless::String<heapless::consts::U64> = heapless::String::new();
-        write!(buffer, "{}", run,).unwrap();
+        write!(buffer, "{:3}  TN: {:3}", run, tablenumber).unwrap();
         disp_lcd.draw(
             Font6x8::render_str(&buffer)
                 .stroke(Some(Rgb565::from((0, 0, 255))))
@@ -165,13 +172,11 @@ fn main() -> ! {
         }
         delay.delay_ms(30 as u8);
         while !temp_sensor.check_measurement_ready(messure0).unwrap() {
-
             led1.set_low();
             delay.delay_ms(128 as u8);
             led1.set_high();
             delay.delay_ms(128 as u8);
         }
-
 
         temp_sensor
             .get_measurement_data(SensorHalf::Top, &mut data)

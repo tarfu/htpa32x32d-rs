@@ -3,10 +3,9 @@ name: Rust
 on: [push]
 
 jobs:
-  build:
+  build-example:
 
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@master
       - uses: actions-rs/toolchain@v1
@@ -15,7 +14,22 @@ jobs:
           target: thumbv7em-none-eabihf
           override: true
       - uses: actions-rs/cargo@v1
+        env:
+          CARGO_MANIFEST_DIR: nrf52840-examples
         with:
           use-cross: true
           command: build
           args: --target thumbv7em-none-eabihf
+
+  run-tests:
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test

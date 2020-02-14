@@ -1,7 +1,6 @@
 //! Driver for the HTPA32x32 an Thermopile Array from Heimann
 
-#![no_std]
-// #![deny(missing_debug_implementations)]
+#![cfg_attr(not(test), no_std)]// #![deny(missing_debug_implementations)]
 //#![deny(missing_docs)] // just allow for missing docs right now
 #![allow(missing_docs)]
 #![deny(warnings)]
@@ -17,7 +16,7 @@
 use embedded_hal as hal;
 
 //use libm;
-//use bit_field::BitField;
+use bit_field::BitField;
 
 use crate::hal::blocking::delay::DelayMs;
 use crate::hal::blocking::i2c::{Write, WriteRead};
@@ -121,11 +120,25 @@ impl<I2C, E> Htpa32x32d<I2C>
 
     /// get measurement for the block specified in the former send command and select from which half it should come
     /// data must be at 258 in size
-    pub fn get_measurement_data(&mut self, half: SensorHalf, data: &mut [u8; 258]) -> Result<(), Error<E>> {
+    pub fn get_measurement_data(&mut self, half: SensorHalf, data: &mut [u8]) -> Result<(), Error<E>> {
         let sensor_half = [half as u8];
 
         self.i2c.write_read(self.addr_sensor, &sensor_half, data)
             .map_err(Error::I2c)
+    }
+
+    pub fn read_eeprom_data(&mut self, address: u16, data: &mut [u8]) -> Result<(), Error<E>> {
+
+        self.i2c.write_read(self.addr_eeprom, &[address.get_bits(8..16) as u8, address.get_bits(0..8) as u8], data)
+            .map_err(Error::I2c)
+    }
+
+    pub fn get_tablenumber(&mut self) -> Result<u16, Error<E>> {
+        let mut data: [u8; 2] = [0; 2];
+        match self.read_eeprom_data(0x000B, &mut data) {
+            Ok(_) => Ok(u16::from_le_bytes(data)),
+            Err(e) => Err(e)
+        }
     }
 
 
@@ -268,12 +281,7 @@ pub enum SensorHalf{
     Bottom =0x0B,
 }
 
-
+mod table;
 #[cfg(test)]
-mod tests {
-// TODO :D
-//    #[test]
-//    fn it_works() {
-//        assert_eq!(2 + 2, 4);
-//    }
-}
+mod tests;
+
