@@ -1,3 +1,6 @@
+
+
+
 #[test]
 fn it_works() {
     assert_eq!(2 + 2, 4);
@@ -8,7 +11,7 @@ fn i2c_example() {
     extern crate embedded_hal;
     extern crate embedded_hal_mock;
 
-//    use embedded_hal::prelude::*;
+    //    use embedded_hal::prelude::*;
     use embedded_hal::blocking::i2c::{Read, Write, WriteRead};
     use embedded_hal_mock::i2c::{Mock as I2cMock, Transaction as I2cTransaction};
 

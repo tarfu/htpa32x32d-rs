@@ -1,6 +1,7 @@
 //! Driver for the HTPA32x32 an Thermopile Array from Heimann
 
-#![cfg_attr(not(test), no_std)]// #![deny(missing_debug_implementations)]
+#![cfg_attr(not(test), no_std)] // instead of #![no_std] to be able to test with embedded-hal-mock
+// #![deny(missing_debug_implementations)]
 //#![deny(missing_docs)] // just allow for missing docs right now
 #![allow(missing_docs)]
 #![deny(warnings)]
